@@ -17,10 +17,21 @@ func main() {
 	pixelgl.Run(run)
 }
 
+type Direction int
+
+const (
+	DirR Direction = 0
+	DirD Direction = 1
+	DirL Direction = 2
+	DirU Direction = 3
+)
+
 type player struct {
-	picture  pixel.Picture
-	anim     int
-	position pixel.Vec
+	picture   pixel.Picture
+	anim      int
+	direction Direction
+	position  pixel.Vec
+	sprite    *pixel.Sprite
 }
 
 func (p *player) Draw(target pixel.Target) {
@@ -28,13 +39,17 @@ func (p *player) Draw(target pixel.Target) {
 	const spriteRows = 4
 	spriteWidth := p.picture.Bounds().Max.X / spriteCols
 	spriteHeight := p.picture.Bounds().Max.Y / spriteRows
-	spriteX := float64(p.anim%spriteCols) * spriteWidth
+	spriteX := float64(1+p.anim%(spriteCols-1)) * spriteWidth
 	spriteY := float64(p.anim/spriteCols) * spriteHeight
 
-	bounds := pixel.R(spriteX, spriteY, spriteWidth, spriteHeight)
+	bounds := pixel.R(spriteX, spriteY, spriteX+spriteWidth, spriteY+spriteHeight)
 	fmt.Printf("i: %d, offset: %v\n", p.anim, bounds)
-	sprite := pixel.NewSprite(p.picture, bounds)
-	sprite.Draw(target, pixel.IM.Moved(p.position))
+	if p.sprite == nil {
+		p.sprite = pixel.NewSprite(p.picture, bounds)
+	} else {
+		p.sprite.Set(p.picture, bounds)
+	}
+	p.sprite.Draw(target, pixel.IM.Moved(p.position))
 }
 
 func run() {
@@ -54,24 +69,37 @@ func run() {
 	}
 
 	p := player{
-		picture:  pic,
-		anim:     0,
-		position: win.Bounds().Center(),
+		picture:   pic,
+		anim:      0,
+		direction: DirR,
+		position:  win.Bounds().Center(),
 	}
 
 	last := time.Now()
 	for !win.Closed() {
-
 		now := time.Now()
 		elapsed := now.Sub(last)
 
-		if elapsed >= 1000*time.Millisecond {
-			p.anim = (p.anim + 1) % (4 * 9)
+		if win.Pressed(pixelgl.KeyLeft) {
+			p.direction = DirL
+		}
+		if win.Pressed(pixelgl.KeyRight) {
+			p.direction = DirR
+		}
+		if win.Pressed(pixelgl.KeyDown) {
+			p.direction = DirD
+		}
+		if win.Pressed(pixelgl.KeyUp) {
+			p.direction = DirU
+		}
+
+		if elapsed >= 125*time.Millisecond {
+			p.anim = int(p.direction)*9 + (p.anim+1)%9
 			last = now
 
 		}
 
-		win.Clear(colornames.Greenyellow)
+		win.Clear(colornames.Burlywood)
 		p.Draw(win)
 		win.Update()
 	}
