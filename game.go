@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"os"
 	"time"
@@ -43,7 +42,6 @@ func (p *player) Draw(target pixel.Target) {
 	spriteY := float64(p.anim/spriteCols) * spriteHeight
 
 	bounds := pixel.R(spriteX, spriteY, spriteX+spriteWidth, spriteY+spriteHeight)
-	fmt.Printf("i: %d, offset: %v\n", p.anim, bounds)
 	if p.sprite == nil {
 		p.sprite = pixel.NewSprite(p.picture, bounds)
 	} else {
@@ -93,7 +91,7 @@ func run() {
 			p.direction = DirU
 		}
 
-		if elapsed >= 125*time.Millisecond {
+		if elapsed >= 55*time.Millisecond {
 			p.anim = int(p.direction)*9 + (p.anim+1)%9
 			last = now
 
