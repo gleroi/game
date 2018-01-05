@@ -93,8 +93,22 @@ func run() {
 
 		if elapsed >= 55*time.Millisecond {
 			p.anim = int(p.direction)*9 + (p.anim+1)%9
-			last = now
 
+			var move pixel.Vec
+			const deltaM = 5.0
+			switch p.direction {
+			case DirR:
+				move = pixel.V(deltaM, 0)
+			case DirD:
+				move = pixel.V(0, -deltaM)
+			case DirL:
+				move = pixel.V(-deltaM, 0)
+			case DirU:
+				move = pixel.V(0, deltaM)
+			}
+			p.position = p.position.Add(move)
+
+			last = now
 		}
 
 		win.Clear(colornames.Burlywood)
