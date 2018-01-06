@@ -24,27 +24,40 @@ const (
 	DirD
 	DirL
 	DirU
+	DirNone
 )
 
-type player struct {
-	picture   pixel.Picture
-	anim      int
-	animStep  float64
-	direction Direction
-	position  pixel.Vec
-	sprite    *pixel.Sprite
+type animation struct {
+	picture pixel.Picture
+	sprite  *pixel.Sprite
+
+	anim     int
+	step     float64
+	offset   int
+	interval float64
 }
 
-const spriteCols = 9
-const spriteRows = 4
+func (a *animation) Update(dt time.Duration, distance float64, direction Direction) {
+	if distance > 0 {
+		a.offset = int(direction)*spriteCols + a.anim
+		a.step += distance
+		if a.step > a.interval {
+			a.anim = 1 + a.anim%(spriteCols-1)
+			a.step = 0
+		}
+	} else {
+		a.offset = int(direction) * spriteCols
+		a.anim = 0
+		a.step = 0
+	}
+}
 
-func (p *player) Draw(target pixel.Target) {
+func (p *animation) Sprite() *pixel.Sprite {
 	spriteWidth := p.picture.Bounds().Max.X / spriteCols
 	spriteHeight := p.picture.Bounds().Max.Y / spriteRows
 
-	animOffset := int(p.direction)*spriteCols + p.anim
-	spriteX := float64(animOffset%spriteCols) * spriteWidth
-	spriteY := float64(animOffset/spriteCols) * spriteHeight
+	spriteX := float64(p.offset%spriteCols) * spriteWidth
+	spriteY := float64(p.offset/spriteCols) * spriteHeight
 
 	bounds := pixel.R(spriteX, spriteY, spriteX+spriteWidth, spriteY+spriteHeight)
 	if p.sprite == nil {
@@ -52,7 +65,43 @@ func (p *player) Draw(target pixel.Target) {
 	} else {
 		p.sprite.Set(p.picture, bounds)
 	}
-	p.sprite.Draw(target, pixel.IM.Moved(p.position))
+	return p.sprite
+}
+
+type player struct {
+	anim      animation
+	direction Direction
+	position  pixel.Vec
+	speed     float64
+}
+
+const spriteCols = 9
+const spriteRows = 4
+
+func (p *player) Update(dt time.Duration, direction Direction) {
+	if direction != DirNone {
+		p.direction = direction
+	}
+
+	var move pixel.Vec
+	switch direction {
+	case DirL:
+		move = pixel.V(-1, 0)
+	case DirR:
+		move = pixel.V(1, 0)
+	case DirD:
+		move = pixel.V(0, -1)
+	case DirU:
+		move = pixel.V(0, 1)
+	}
+	distance := move.Scaled(dt.Seconds() * p.speed)
+	p.position = p.position.Add(distance)
+
+	p.anim.Update(dt, distance.Len(), p.direction)
+}
+
+func (p *player) Draw(target pixel.Target) {
+	p.anim.Sprite().Draw(target, pixel.IM.Moved(p.position))
 }
 
 func run() {
@@ -72,68 +121,53 @@ func run() {
 	}
 
 	p := player{
-		picture:   pic,
-		anim:      0,
+		anim: animation{
+			picture:  pic,
+			interval: 4.5,
+		},
 		direction: DirR,
+		speed:     76.0,
 		position:  win.Bounds().Center(),
 	}
 
 	last := time.Now()
-	animInterval := 4.5
-	speed := 76.0
 	for !win.Closed() {
 		now := time.Now()
 		elapsed := now.Sub(last)
 
-		deltaM := 1.0
-		var move pixel.Vec
+		direction := DirNone
 		if win.Pressed(pixelgl.KeyLeft) {
-			p.direction = DirL
-			move = pixel.V(-deltaM, 0)
+			direction = DirL
 		}
 		if win.Pressed(pixelgl.KeyRight) {
-			p.direction = DirR
-			move = pixel.V(deltaM, 0)
+			direction = DirR
 		}
 		if win.Pressed(pixelgl.KeyDown) {
-			p.direction = DirD
-			move = pixel.V(0, -deltaM)
+			direction = DirD
 		}
 		if win.Pressed(pixelgl.KeyUp) {
-			p.direction = DirU
-			move = pixel.V(0, deltaM)
+			direction = DirU
 		}
 
 		if win.JustPressed(pixelgl.KeyV) {
-			animInterval += 0.5
-			fmt.Printf("animInterval %f\n", animInterval)
+			p.anim.interval += 0.5
+			fmt.Printf("animInterval %f\n", p.anim.interval)
 		}
 		if win.JustPressed(pixelgl.KeyC) {
-			animInterval -= 0.5
-			fmt.Printf("animInterval %f\n", animInterval)
+			p.anim.interval -= 0.5
+			fmt.Printf("animInterval %f\n", p.anim.interval)
 		}
 
 		if win.JustPressed(pixelgl.KeyF) {
-			speed += 0.5
-			fmt.Printf("speed %f\n", speed)
+			p.speed += 0.5
+			fmt.Printf("speed %f\n", p.speed)
 		}
 		if win.JustPressed(pixelgl.KeyD) {
-			speed -= 0.5
-			fmt.Printf("speed %f\n", speed)
+			p.speed -= 0.5
+			fmt.Printf("speed %f\n", p.speed)
 		}
 
-		if move.Len() > 0.0 {
-			distance := elapsed.Seconds() * speed
-			p.position = p.position.Add(move.Scaled(distance))
-			p.animStep += distance
-			if p.animStep > animInterval {
-				p.anim = 1 + p.anim%(spriteCols-1)
-				p.animStep = 0
-			}
-		} else {
-			p.anim = 0
-			p.animStep = 0
-		}
+		p.Update(elapsed, direction)
 
 		win.Clear(colornames.Burlywood)
 		p.Draw(win)
